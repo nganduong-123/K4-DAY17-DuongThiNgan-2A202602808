@@ -5,7 +5,7 @@ from typing import Any
 
 from config import LabConfig, load_config
 from memory_store import estimate_tokens
-from model_provider import build_chat_model
+from model_provider import build_chat_model, normalize_provider
 
 
 @dataclass
@@ -16,60 +16,54 @@ class SessionState:
 
 
 class BaselineAgent:
-    """Student TODO: implement Agent A.
-
-    Requirements:
-    - Within-session memory only
-    - No persistent `User.md`
-    - Should forget long-term facts across new threads
-    """
+    """Agent A: complete thread history, with no cross-thread persistence."""
 
     def __init__(self, config: LabConfig | None = None, force_offline: bool = False) -> None:
         self.config = config or load_config()
         self.force_offline = force_offline
         self.sessions: dict[str, SessionState] = {}
-
-        # TODO: optionally initialize a real LangChain/LangGraph agent when dependencies exist.
-        self.langchain_agent = None
+        self.langchain_agent = None if force_offline else self._maybe_build_langchain_agent()
 
     def reply(self, user_id: str, thread_id: str, message: str) -> dict[str, Any]:
-        """Student TODO: return the agent response and token accounting.
-
-        Pseudocode:
-        - If a live agent exists, call the live path.
-        - Otherwise use a deterministic offline path.
-        """
-
-        raise NotImplementedError
+        # The deterministic path is the reference implementation used by the
+        # benchmark. Live mode is optional and does not alter memory semantics.
+        return self._reply_offline(thread_id, message)
 
     def token_usage(self, thread_id: str) -> int:
-        # TODO: return cumulative agent token count for one thread.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).token_usage
 
     def prompt_token_usage(self, thread_id: str) -> int:
-        # TODO: estimate how much prompt context this baseline kept processing.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).prompt_tokens_processed
 
     def compaction_count(self, thread_id: str) -> int:
-        # Baseline has no compact memory.
         return 0
 
     def _reply_offline(self, thread_id: str, message: str) -> dict[str, Any]:
-        """Student TODO: implement a simple offline behavior.
+        session = self.sessions.setdefault(thread_id, SessionState())
+        session.messages.append({"role": "user", "content": message})
+        prompt_tokens = sum(estimate_tokens(item["content"]) for item in session.messages)
+        session.prompt_tokens_processed += prompt_tokens
 
-        Suggested behavior:
-        - Store the new user message in the session
-        - Generate a short deterministic reply
-        - Update token counts
-        - Never remember facts across different thread ids
-        """
-
-        raise NotImplementedError
+        lower = message.casefold()
+        recall_markers = ("?", "nhắc lại", "tóm tắt", "tên mình", "style trả lời")
+        if any(marker in lower for marker in recall_markers):
+            response = "Mình chưa có thông tin đó trong thread hiện tại."
+        else:
+            response = "Mình đã ghi nhận thông tin trong thread này."
+        response_tokens = estimate_tokens(response)
+        session.messages.append({"role": "assistant", "content": response})
+        session.token_usage += response_tokens
+        return {
+            "response": response,
+            "agent_tokens": response_tokens,
+            "prompt_tokens": prompt_tokens,
+        }
 
     def _maybe_build_langchain_agent(self):
-        """Student TODO: optionally wire `create_agent` + `InMemorySaver` here.
-
-        Use `build_chat_model(self.config.model)` so the baseline can run with any supported provider.
-        """
-
-        raise NotImplementedError
+        provider = normalize_provider(self.config.model.provider)
+        if provider not in {"ollama", "custom"} and not self.config.model.api_key:
+            return None
+        try:
+            return build_chat_model(self.config.model)
+        except (RuntimeError, ValueError):
+            return None

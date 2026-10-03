@@ -1,5 +1,22 @@
 # Phase 2, Track 3, Day 17: Memory Systems for AI Agent
 
+## Thông tin bài làm
+
+- Sinh viên: Dương Thị Ngân
+- MSSV: 2A202602808
+- Chế độ benchmark: offline, kết quả lặp lại được và không cần API key
+- Bonus: trích xuất fact có cấu trúc, lọc câu hỏi/nhiễu và cập nhật fact xung đột theo giá trị mới nhất
+
+Chạy bài từ thư mục gốc:
+
+```bash
+python -m pip install -r requirements.txt
+python src/benchmark.py
+pytest src/test_agents.py -v
+```
+
+Kết quả kiểm tra hiện tại: `4 passed`. Phần giải thích số liệu nằm trong `STEP8.md`.
+
 Trong Day 17 này, các bạn sẽ tập trung vào một câu hỏi rất thực tế: làm sao để AI agent **không chỉ trả lời tốt trong một lượt chat**, mà còn **nhớ đúng thông tin quan trọng qua nhiều phiên làm việc** mà vẫn kiểm soát được chi phí token.
 
 Trong bài lab này, các bạn sẽ xây dựng và so sánh hai agent:
@@ -35,7 +52,7 @@ Sau khi hoàn thành, các bạn cần có khả năng:
 ├── data/            # dữ liệu benchmark dùng chung
 │   ├── conversations.json
 │   └── advanced_long_context.json
-└── src/             # bản scaffold dành cho sinh viên (pseudocode + TODO)
+└── src/             # phần triển khai hoàn chỉnh của sinh viên
     ├── model_provider.py
     ├── config.py
     ├── memory_store.py
